@@ -55,14 +55,27 @@ def cli():
 
 
 def contain(command, image_name, image_dir, container_id, container_dir):
-    # TODO: would you like to do something before chrooting?
-    # print('Created a new root fs for our container: {}'.format(new_root))
+    new_root = create_container_root(image_name, image_dir, container_id, container_dir)
+    print('Created a new root fs for our container: {}'.format(new_root))
 
-    # TODO: chroot into new_root
-    # TODO: something after chrooting? (HINT: try running: python3 rd.py run -i ubuntu -- /bin/sh)
+    linux.mount('proc', os.path.join(new_root, 'proc'), 'proc', 0, '')
+    linux.mount('sysfs', os.path.join(new_root, 'sys'), 'sysfs', 0, '')
+    linux.mount('tmpfs', os.path.join(new_root, 'dev'), 'tmpfs',
+                linux.MS_NOSUID | linux.MS_STRICTATIME, 'mode=755')
+    # Add some basic devices
+    devpts_path = os.path.join(new_root, 'dev', 'pts')
+    if not os.path.exists(devpts_path):
+        os.makedirs(devpts_path)
+        linux.mount('devpts', devpts_path, 'devpts', 0, '')
+    for i, dev in enumerate(['stdin', 'stdout', 'stderr']):
+        os.symlink('/proc/self/fd/%d' % i, os.path.join(new_root, 'dev', dev))
 
+    # TODO: add more devices (e.g. null, zero, random, urandom) using os.mknod.
+
+    os.chroot(new_root)
+
+    os.chdir('/')
     os.execvp(command[0], command)
-
 
 @cli.command(context_settings=dict(ignore_unknown_options=True,))
 @click.option('--image-name', '-i', help='Image name', default='ubuntu')
